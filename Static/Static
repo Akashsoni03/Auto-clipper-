@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Auto Video Clipper</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen font-sans pb-16">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-20 bg-zinc-950/90 backdrop-blur border-b border-zinc-800 px-4 py-3.5">
+    <div class="max-w-md mx-auto flex items-center justify-between">
+      <h1 class="text-lg font-bold tracking-tight text-white">⚡ Auto Clipper</h1>
+      <span class="text-xs bg-emerald-500/15 text-emerald-400 px-2.5 py-1 rounded-full font-medium">Mobile Ready</span>
+    </div>
+  </header>
+
+  <main class="max-w-md mx-auto px-4 pt-5 space-y-5">
+
+    <!-- Input Card -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4 shadow-lg">
+      <!-- Tabs -->
+      <div class="grid grid-cols-2 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+        <button id="tabLink" onclick="switchTab('link')" class="py-2 text-sm font-semibold rounded-lg bg-zinc-800 text-white transition">
+          YouTube Link
+        </button>
+        <button id="tabFile" onclick="switchTab('file')" class="py-2 text-sm font-semibold rounded-lg text-zinc-400 transition">
+          Upload Video
+        </button>
+      </div>
+
+      <!-- YouTube Link Input -->
+      <div id="linkSection" class="space-y-2">
+        <label class="text-xs text-zinc-400 font-medium">YouTube Video URL paste karein</label>
+        <input
+          id="youtubeUrl"
+          type="url"
+          placeholder="https://youtube.com/watch?v=..."
+          class="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3.5 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+        />
+      </div>
+
+      <!-- File Upload Input -->
+      <div id="fileSection" class="hidden space-y-2">
+        <label class="text-xs text-zinc-400 font-medium">Mobile gallery se video select karein</label>
+        <input
+          id="videoFile"
+          type="file"
+          accept="video/*"
+          class="w-full text-sm text-zinc-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700 bg-zinc-950 border border-zinc-700 rounded-xl p-1.5"
+        />
+      </div>
+
+      <!-- Submit Button -->
+      <button
+        id="processBtn"
+        onclick="startProcessing()"
+        class="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-zinc-950 font-bold py-3.5 rounded-xl text-sm transition shadow-md"
+      >
+        Check Copyright & Generate 5 Clips
+      </button>
+    </div>
+
+    <!-- Loading Status -->
+    <div id="loadingBox" class="hidden bg-zinc-900 border border-zinc-800 rounded-2xl p-5 text-center space-y-3">
+      <div class="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <p class="text-sm font-medium text-zinc-200">Video process ho rahi hai...</p>
+      <p class="text-xs text-zinc-400">Copyright scan, clipping aur thumbnails ban rahe hain.</p>
+    </div>
+
+    <!-- Error Box -->
+    <div id="errorBox" class="hidden bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl p-3.5"></div>
+
+    <!-- Copyright Report Card -->
+    <div id="copyrightBox" class="hidden rounded-2xl p-4 border space-y-1.5">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider">Copyright Status</span>
+        <span id="copyrightBadge" class="text-xs font-bold px-2.5 py-0.5 rounded-full"></span>
+      </div>
+      <p id="copyrightLicense" class="text-xs text-zinc-300"></p>
+      <p id="copyrightAudio" class="text-xs text-zinc-400"></p>
+    </div>
+
+    <!-- Clips Result List -->
+    <div id="clipsContainer" class="space-y-4"></div>
+
+  </main>
+
+  <script>
+    let activeTab = "link";
+
+    function switchTab(tab) {
+      activeTab = tab;
+      const isLink = tab === "link";
+      document.getElementById("linkSection").classList.toggle("hidden", !isLink);
+      document.getElementById("fileSection").classList.toggle("hidden", isLink);
+
+      document.getElementById("tabLink").className = isLink
+        ? "py-2 text-sm font-semibold rounded-lg bg-zinc-800 text-white transition"
+        : "py-2 text-sm font-semibold rounded-lg text-zinc-400 transition";
+      document.getElementById("tabFile").className = !isLink
+        ? "py-2 text-sm font-semibold rounded-lg bg-zinc-800 text-white transition"
+        : "py-2 text-sm font-semibold rounded-lg text-zinc-400 transition";
+    }
+
+    async function startProcessing() {
+      const urlInput = document.getElementById("youtubeUrl").value.trim();
+      const fileInput = document.getElementById("videoFile").files[0];
+      const errorBox = document.getElementById("errorBox");
+      const loadingBox = document.getElementById("loadingBox");
+      const clipsContainer = document.getElementById("clipsContainer");
+      const copyrightBox = document.getElementById("copyrightBox");
+      const btn = document.getElementById("processBtn");
+
+      errorBox.classList.add("hidden");
+      clipsContainer.innerHTML = "";
+      copyrightBox.classList.add("hidden");
+
+      const formData = new FormData();
+      if (activeTab === "link") {
+        if (!urlInput) return showError("Please YouTube link paste karein.");
+        formData.append("youtube_url", urlInput);
+      } else {
+        if (!fileInput) return showError("Please apne mobile se koi video select karein.");
+        formData.append("video_file", fileInput);
+      }
+
+      btn.disabled = true;
+      btn.classList.add("opacity-50");
+      loadingBox.classList.remove("hidden");
+
+      try {
+        const response = await fetch("/api/process", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Processing me error aaya.");
+        }
+
+        renderCopyright(data.copyright);
+        renderClips(data.clips);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove("opacity-50");
+        loadingBox.classList.add("hidden");
+      }
+    }
+
+    function showError(msg) {
+      const box = document.getElementById("errorBox");
+      box.textContent = msg;
+      box.classList.remove("hidden");
+    }
+
+    function renderCopyright(cp) {
+      const box = document.getElementById("copyrightBox");
+      const badge = document.getElementById("copyrightBadge");
+      const isWarn = cp.warning;
+
+      box.className = isWarn
+        ? "rounded-2xl p-4 border space-y-1.5 bg-amber-500/10 border-amber-500/40 text-amber-300"
+        : "rounded-2xl p-4 border space-y-1.5 bg-emerald-500/10 border-emerald-500/40 text-emerald-300";
+
+      badge.className = isWarn
+        ? "text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300"
+        : "text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300";
+
+      badge.textContent = isWarn ? "⚠️ Copyright Risk" : "✅ Safe / Clear";
+      document.getElementById("copyrightLicense").textContent = "License: " + (cp.license || "Unknown");
+      document.getElementById("copyrightAudio").textContent =
+        "Audio Scan: " + (cp.detected_music ? `Detected: ${cp.detected_music}` : cp.audio_scan);
+
+      box.classList.remove("hidden");
+    }
+
+    function renderClips(clips) {
+      const container = document.getElementById("clipsContainer");
+      if (!clips || clips.length === 0) {
+        showError("Koi clip generate nahi ho paayi.");
+        return;
+      }
+
+      clips.forEach((clip) => {
+        const card = document.createElement("div");
+        card.className = "bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-lg";
+
+        card.innerHTML = `
+          <div class="relative">
+            <video
+              controls
+              playsinline
+              poster="${clip.thumbnail_url}"
+              src="${clip.preview_url}"
+              class="w-full max-h-72 bg-black object-contain"
+            ></video>
+          </div>
+          <div class="p-4 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <span class="text-[11px] font-bold text-emerald-400 uppercase">Clip #${clip.clip_number}</span>
+                <h3 class="text-sm font-bold text-white leading-snug">${clip.title}</h3>
+                <p class="text-xs text-zinc-400 mt-0.5">${clip.start}s – ${clip.end}s</p>
+              </div>
+              <a
+                href="${clip.thumbnail_url}"
+                download="thumb_${clip.clip_number}.jpg"
+                class="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-3 py-1.5 rounded-lg font-medium shrink-0"
+              >
+                Save Thumb
+              </a>
+            </div>
+
+            <a
+              href="${clip.download_url}"
+              download
+              class="block w-full text-center bg-white hover:bg-zinc-200 active:scale-[0.98] text-zinc-950 font-bold py-3 rounded-xl text-sm transition"
+            >
+              ⬇️ Download Clip to Gallery
+            </a>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+  </script>
+</body>
+</html>
